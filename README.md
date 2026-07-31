@@ -2,79 +2,83 @@
 
 Translate Italian letters, keep them, and review the words later.
 
-The translation itself is the least interesting part — a machine translation
-already gives you the gist. What this does instead is show you *how* the Italian
-works and flag what a literal reading would flatten:
+Built around a pen pal correspondence: paste what arrived, get it in English,
+and keep both halves so you can come back to them. Any Italian on the page can
+be read aloud.
 
-- a natural English translation that keeps the writer's tone
-- a word-for-word rendering that exposes Italian word order
-- vocabulary worth learning, in the specific sense used
-- idioms, regional usage, and cultural references
-- a short reply in Italian you could adapt and send
-
-Everything is saved locally so you can come back to it, and any Italian text on
-the page can be read aloud.
+Words are added by you, not extracted automatically — as you read a letter you
+add the ones you had to look up, and they go into a flashcard deck that brings
+them back a week later.
 
 ## Setup
 
 ```bash
-cp .env.example .env.local   # then paste your Anthropic API key
+cp .env.example .env.local   # then paste your DeepL key
 npm install
 npm run dev                  # http://localhost:3000
 ```
+
+The key is free: sign up for **DeepL API Free** at
+[deepl.com/pro-api](https://www.deepl.com/pro-api). It allows roughly 500,000
+characters a month, which is far more letters than anyone writes. A card is
+required for verification but the free tier is not charged.
 
 ## How it works
 
 | Concern | Choice |
 |---|---|
-| Translation | Claude (`claude-opus-5`) with structured outputs, so the response arrives as validated JSON rather than prose to parse |
-| Storage | SQLite via Node's built-in `node:sqlite` — no native build step, no dependency |
+| Translation | DeepL API Free — noticeably better than Google on Italian |
+| Storage | SQLite via Node's built-in `node:sqlite` — no native build step |
 | Audio | The browser's `speechSynthesis` API — free, offline, no key |
+| Vocabulary | Entered by hand while reading |
 
 ```
 app/
-  page.tsx              paste Italian, see the breakdown
-  saved/page.tsx        everything you've translated
+  page.tsx              paste Italian, get English, save both
+  saved/page.tsx        every letter, with its word list
   review/page.tsx       flashcards for words due
-  api/translate/        Claude call + save
+  api/translate/        DeepL call + save
   api/entries/          list, delete
-  api/vocab/            due words, mark reviewed
+  api/vocab/            add, remove, list due, mark reviewed
 components/
-  EntryView.tsx         renders one translated letter
+  EntryView.tsx         one letter, plus its vocabulary editor
   SpeakButton.tsx       text-to-speech playback
 lib/
   db.ts                 schema and queries
-  translation-schema.ts the shape Claude must return
+  deepl.ts              DeepL client
 ```
 
 Data lives in `letters.db` in the project root, which is gitignored. Delete the
 file to start over; the schema recreates itself on next run.
 
-## Cost
-
-A letter is roughly 500 tokens in and 900 out — about half a cent at Opus 5
-pricing ($5/$25 per million tokens). Translating a letter a week costs well
-under a dollar a year.
-
 ## Known limits
 
-- **Audio is playback-only.** `speechSynthesis` can't be saved to a file, so
-  there's nothing to download or listen to offline. Adding real audio files
-  means calling a TTS API and storing the result alongside the entry — replace
-  `SpeakButton` and add a column.
+- **Translation only.** DeepL returns prose. It cannot tell you why a phrase is
+  idiomatic, which words are worth learning, or how the register differs from
+  what you would say — that needs a language model. This was a deliberate
+  tradeoff to keep the app free; see *Going further* below.
+- **Audio is playback-only.** `speechSynthesis` cannot be saved to a file, so
+  there is nothing to download or play offline. Real audio files mean a TTS API
+  and a new column; the swap is isolated to `SpeakButton`.
 - **Italian voice quality depends on your OS.** macOS ships good ones. If none
-  is installed the button still works but uses a default voice; install one in
-  System Settings → Accessibility → Spoken Content.
-- **`node:sqlite` prints an experimental warning** on startup. It's stable
-  enough in Node 24 for a single-user local app, but it is the reason you'll see
-  that line in the console.
+  is installed the button still works but falls back to a default voice — add
+  one under System Settings → Accessibility → Spoken Content.
+- **`node:sqlite` prints an experimental warning** on startup. Stable enough in
+  Node 24 for a single-user local app, but that is why the line appears.
 - **Review is a fixed 7-day interval**, not real spaced repetition. Widening the
   interval as `review_count` grows is a few lines in `vocabDue()`.
-- **Single user, no auth.** It assumes it's running on your machine.
+- **Single user, no auth.** It assumes it is running on your machine.
 
-## Possible next steps
+## Going further
 
-- Speaking Italian as input, via the browser's `SpeechRecognition` API (Chrome
-  only, and flaky — worth knowing before you start)
-- Photo of a handwritten letter → text, using Claude's vision support
-- Export vocabulary to Anki
+The obvious upgrade is a second button that sends one letter to a language
+model for the full breakdown — word-for-word structure, idioms, register, a
+suggested reply — while DeepL keeps handling everyday translation for free.
+At roughly half a cent per letter it would cost under a dollar a year.
+
+Others worth considering:
+
+- Photo of a handwritten letter → text, via a vision model
+- Speaking Italian as input, via the browser's `SpeechRecognition` API
+  (Chrome only, and unreliable — worth knowing before starting)
+- Export the vocabulary deck to Anki

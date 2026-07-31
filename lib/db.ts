@@ -1,6 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
-import type { Translation } from "./translation-schema";
 
 // Next.js hot-reloads modules in dev, so the connection is cached on globalThis
 // to avoid opening a new handle on every request.
@@ -11,22 +10,21 @@ function open(): DatabaseSync {
   conn.exec("PRAGMA foreign_keys = ON");
   conn.exec(`
     CREATE TABLE IF NOT EXISTS entries (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      title           TEXT NOT NULL,
-      source_text     TEXT NOT NULL,
-      natural         TEXT NOT NULL,
-      literal         TEXT NOT NULL,
-      notes           TEXT NOT NULL,
-      suggested_reply TEXT NOT NULL,
-      created_at      TEXT NOT NULL
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      title       TEXT NOT NULL,
+      source_text TEXT NOT NULL,
+      translation TEXT NOT NULL,
+      created_at  TEXT NOT NULL
     );
 
+    -- Words you add yourself while reading a letter. DeepL translates prose but
+    -- cannot tell you which words are worth remembering, so this is manual.
     CREATE TABLE IF NOT EXISTS vocab (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       entry_id     INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
       term         TEXT NOT NULL,
       translation  TEXT NOT NULL,
-      note         TEXT NOT NULL,
+      note         TEXT NOT NULL DEFAULT '',
       reviewed_at  TEXT,
       review_count INTEGER NOT NULL DEFAULT 0
     );
@@ -55,48 +53,22 @@ export type EntryRow = {
   id: number;
   title: string;
   source_text: string;
-  natural: string;
-  literal: string;
-  notes: string;
-  suggested_reply: string;
+  translation: string;
   created_at: string;
 };
 
-export type Entry = Omit<EntryRow, "notes"> & {
-  notes: string[];
-  vocab: VocabRow[];
-};
+export type Entry = EntryRow & { vocab: VocabRow[] };
 
-function hydrate(row: EntryRow, vocab: VocabRow[]): Entry {
-  const { notes, ...rest } = row;
-  return { ...rest, notes: JSON.parse(notes) as string[], vocab };
-}
-
-export function saveEntry(sourceText: string, t: Translation): Entry {
+export function saveEntry(sourceText: string, translation: string): Entry {
   const conn = db();
-  const title = t.natural.slice(0, 60).replace(/\s+\S*$/, "") || "Untitled";
+  const title = translation.slice(0, 60).replace(/\s+\S*$/, "") || "Untitled";
 
   const inserted = conn
     .prepare(
-      `INSERT INTO entries (title, source_text, natural, literal, notes, suggested_reply, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      `INSERT INTO entries (title, source_text, translation, created_at)
+       VALUES (?, ?, ?, ?) RETURNING id`,
     )
-    .get(
-      title,
-      sourceText,
-      t.natural,
-      t.literal,
-      JSON.stringify(t.notes),
-      t.suggestedReply,
-      new Date().toISOString(),
-    ) as { id: number };
-
-  const addVocab = conn.prepare(
-    `INSERT INTO vocab (entry_id, term, translation, note) VALUES (?, ?, ?, ?)`,
-  );
-  for (const v of t.vocabulary) {
-    addVocab.run(inserted.id, v.term, v.translation, v.note);
-  }
+    .get(title, sourceText, translation, new Date().toISOString()) as { id: number };
 
   return getEntry(inserted.id)!;
 }
@@ -110,7 +82,7 @@ export function getEntry(id: number): Entry | null {
   const vocab = conn
     .prepare(`SELECT * FROM vocab WHERE entry_id = ? ORDER BY id`)
     .all(id) as VocabRow[];
-  return hydrate(row, vocab);
+  return { ...row, vocab };
 }
 
 export function listEntries(): Entry[] {
@@ -126,11 +98,30 @@ export function listEntries(): Entry[] {
     list.push(v);
     byEntry.set(v.entry_id, list);
   }
-  return rows.map((r) => hydrate(r, byEntry.get(r.id) ?? []));
+  return rows.map((r) => ({ ...r, vocab: byEntry.get(r.id) ?? [] }));
 }
 
 export function deleteEntry(id: number): void {
   db().prepare(`DELETE FROM entries WHERE id = ?`).run(id);
+}
+
+export function addVocab(
+  entryId: number,
+  term: string,
+  translation: string,
+  note = "",
+): VocabRow {
+  const inserted = db()
+    .prepare(
+      `INSERT INTO vocab (entry_id, term, translation, note)
+       VALUES (?, ?, ?, ?) RETURNING *`,
+    )
+    .get(entryId, term, translation, note) as VocabRow;
+  return inserted;
+}
+
+export function deleteVocab(id: number): void {
+  db().prepare(`DELETE FROM vocab WHERE id = ?`).run(id);
 }
 
 /**

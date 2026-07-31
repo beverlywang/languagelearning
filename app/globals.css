@@ -245,3 +245,55 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+.vocabForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.vocabForm input {
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.vocabForm input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.vocabForm button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.linkish {
+  margin-left: 0.6rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkish:hover {
+  color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .vocabForm {
+    grid-template-columns: 1fr;
+  }
+}

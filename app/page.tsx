@@ -54,11 +54,7 @@ export default function TranslatePage() {
           >
             {pending ? "Translating..." : "Translate & save"}
           </button>
-          {pending && (
-            <span className="muted">
-              Reading it properly takes a few seconds.
-            </span>
-          )}
+          {pending && <span className="muted">Sending it to DeepL...</span>}
         </p>
       </form>
 

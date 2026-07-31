@@ -13,21 +13,22 @@ them back a week later.
 ## Setup
 
 ```bash
-cp .env.example .env.local   # then paste your DeepL key
 npm install
-npm run dev                  # http://localhost:3000
+npm run dev   # http://localhost:3000
 ```
 
-The key is free: sign up for **DeepL API Free** at
-[deepl.com/pro-api](https://www.deepl.com/pro-api). It allows roughly 500,000
-characters a month, which is far more letters than anyone writes. A card is
-required for verification but the free tier is not charged.
+No API key, no signup, no card. Translation goes through
+[MyMemory](https://mymemory.translated.net), which is free to call anonymously.
+
+The free quota is roughly 5,000 words per day per IP address — far more than a
+correspondence needs. Setting `MYMEMORY_EMAIL` in `.env.local` raises it to
+about 50,000; the address is sent as an identifier and is not verified.
 
 ## How it works
 
 | Concern | Choice |
 |---|---|
-| Translation | DeepL API Free — noticeably better than Google on Italian |
+| Translation | MyMemory — free, anonymous, 500 characters per request |
 | Storage | SQLite via Node's built-in `node:sqlite` — no native build step |
 | Audio | The browser's `speechSynthesis` API — free, offline, no key |
 | Vocabulary | Entered by hand while reading |
@@ -37,7 +38,7 @@ app/
   page.tsx              paste Italian, get English, save both
   saved/page.tsx        every letter, with its word list
   review/page.tsx       flashcards for words due
-  api/translate/        DeepL call + save
+  api/translate/        chunk, translate, save
   api/entries/          list, delete
   api/vocab/            add, remove, list due, mark reviewed
 components/
@@ -45,7 +46,7 @@ components/
   SpeakButton.tsx       text-to-speech playback
 lib/
   db.ts                 schema and queries
-  deepl.ts              DeepL client
+  mymemory.ts           translation client and chunker
 ```
 
 Data lives in `letters.db` in the project root, which is gitignored. Delete the
@@ -53,10 +54,19 @@ file to start over; the schema recreates itself on next run.
 
 ## Known limits
 
-- **Translation only.** DeepL returns prose. It cannot tell you why a phrase is
-  idiomatic, which words are worth learning, or how the register differs from
-  what you would say — that needs a language model. This was a deliberate
-  tradeoff to keep the app free; see *Going further* below.
+- **Translation only, and it is the weakest engine of the free options.**
+  MyMemory handles everyday prose well but takes idioms literally — *del più e
+  del meno* ("about this and that") came back as "about the plus and minus" in
+  testing. It cannot tell you why a phrase is idiomatic, which words are worth
+  learning, or how the register differs from what you would say. That is the
+  price of needing no account; see *Going further* below.
+- **Letters are split into 500-character chunks.** That is MyMemory's per-request
+  limit. Splitting happens at sentence boundaries and paragraphs are preserved,
+  but the engine occasionally sees a fragment without its surrounding context,
+  which costs a little accuracy on long sentences.
+- **Editing `lib/db.ts` can break the dev server** with `Failed to load external
+  module node:sqlite`. It is a Turbopack hot-reload quirk, not a code fault —
+  restart `npm run dev` and it clears.
 - **Audio is playback-only.** `speechSynthesis` cannot be saved to a file, so
   there is nothing to download or play offline. Real audio files mean a TTS API
   and a new column; the swap is isolated to `SpeakButton`.
@@ -71,10 +81,18 @@ file to start over; the schema recreates itself on next run.
 
 ## Going further
 
-The obvious upgrade is a second button that sends one letter to a language
-model for the full breakdown — word-for-word structure, idioms, register, a
-suggested reply — while DeepL keeps handling everyday translation for free.
-At roughly half a cent per letter it would cost under a dollar a year.
+Two upgrades are worth knowing about, in order of effort:
+
+**Better translations, still free.** DeepL API Free is noticeably stronger on
+Italian and allows 500,000 characters a month with no 500-character request
+limit, so the chunking could go away. It needs a signup and a card for
+verification, though the free tier is not charged.
+
+**The parts no translation engine can do.** A second button that sends one
+letter to a language model would give the word-for-word structure, the idioms,
+the register, and a suggested reply, while MyMemory keeps handling everyday
+translation for free. At roughly half a cent per letter that is under a dollar
+a year.
 
 Others worth considering:
 

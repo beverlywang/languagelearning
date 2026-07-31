@@ -39,6 +39,37 @@ export function db(): DatabaseSync {
   return globalForDb.__db;
 }
 
+/**
+ * The README tells you to delete letters.db to start over. If that happens
+ * while the server is running, the cached handle still points at the removed
+ * file and every write fails as "readonly". Reopen once and retry rather than
+ * making the user restart.
+ */
+function isStaleHandle(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "ERR_SQLITE_ERROR" &&
+    /readonly|no such table|disk I\/O/i.test(String((error as { message?: string }).message ?? ""))
+  );
+}
+
+function withReopen<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    if (!isStaleHandle(error)) throw error;
+    try {
+      globalForDb.__db?.close();
+    } catch {
+      // The handle is already unusable; nothing to salvage.
+    }
+    globalForDb.__db = open();
+    return run();
+  }
+}
+
 export type VocabRow = {
   id: number;
   entry_id: number;
@@ -60,6 +91,10 @@ export type EntryRow = {
 export type Entry = EntryRow & { vocab: VocabRow[] };
 
 export function saveEntry(sourceText: string, translation: string): Entry {
+  return withReopen(() => insertEntry(sourceText, translation));
+}
+
+function insertEntry(sourceText: string, translation: string): Entry {
   const conn = db();
   const title = translation.slice(0, 60).replace(/\s+\S*$/, "") || "Untitled";
 
@@ -110,6 +145,15 @@ export function addVocab(
   term: string,
   translation: string,
   note = "",
+): VocabRow {
+  return withReopen(() => insertVocab(entryId, term, translation, note));
+}
+
+function insertVocab(
+  entryId: number,
+  term: string,
+  translation: string,
+  note: string,
 ): VocabRow {
   const inserted = db()
     .prepare(

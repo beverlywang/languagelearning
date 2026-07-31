@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { saveEntry } from "@/lib/db";
-import { DeepLError, translate } from "@/lib/deepl";
+import { TranslationError, translate } from "@/lib/mymemory";
 
 export const runtime = "nodejs";
+
+// A long letter is split into 450-character chunks and translated one at a
+// time, so allow well past the default serverless window.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   let text: unknown;
@@ -20,13 +24,10 @@ export async function POST(request: Request) {
     const translation = await translate(text);
     return NextResponse.json(saveEntry(text, translation));
   } catch (error) {
-    if (error instanceof DeepLError) {
+    if (error instanceof TranslationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error(error);
-    return NextResponse.json(
-      { error: "Translation failed. Is the machine online?" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Translation failed." }, { status: 500 });
   }
 }

@@ -1,0 +1,29 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.button:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.button[data-speaking] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.button span {
+  font-size: 0.6rem;
+  line-height: 1;
+}
